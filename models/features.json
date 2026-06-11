@@ -1,0 +1,158 @@
+{
+  "features": [
+    "home_fifa_ranking",
+    "away_fifa_ranking",
+    "ranking_gap",
+    "home_form5_pts",
+    "home_form5_scored",
+    "home_form5_conceded",
+    "home_form10_pts",
+    "home_form10_scored",
+    "home_form10_conceded",
+    "away_form5_pts",
+    "away_form5_scored",
+    "away_form5_conceded",
+    "away_form10_pts",
+    "away_form10_scored",
+    "away_form10_conceded",
+    "h2h_home_wins",
+    "h2h_draws",
+    "h2h_away_wins",
+    "h2h_home_goals_avg",
+    "h2h_away_goals_avg",
+    "h2h_matches",
+    "neutral_venue",
+    "competition_weight",
+    "is_knockout"
+  ],
+  "classes": [
+    "A",
+    "D",
+    "H"
+  ],
+  "imputation_medians": {
+    "home_fifa_ranking": 59.0,
+    "away_fifa_ranking": 67.0,
+    "ranking_gap": 7.0,
+    "home_form5_pts": 1.0898,
+    "home_form5_scored": 1.336,
+    "home_form5_conceded": 1.1841,
+    "home_form10_pts": 1.1233,
+    "home_form10_scored": 1.3424,
+    "home_form10_conceded": 1.1545,
+    "away_form5_pts": 1.0536,
+    "away_form5_scored": 1.2431,
+    "away_form5_conceded": 1.2004,
+    "away_form10_pts": 1.08,
+    "away_form10_scored": 1.328,
+    "away_form10_conceded": 1.2037,
+    "h2h_home_wins": 0.38,
+    "h2h_draws": 0.28,
+    "h2h_away_wins": 0.34,
+    "h2h_home_goals_avg": 1.2,
+    "h2h_away_goals_avg": 1.02,
+    "h2h_matches": 0.0,
+    "neutral_venue": 0.0,
+    "competition_weight": 0.6,
+    "is_knockout": 0.0
+  },
+  "feature_importance": [
+    {
+      "feature": "ranking_gap",
+      "importance": 0.11921386420726776
+    },
+    {
+      "feature": "h2h_away_wins",
+      "importance": 0.05675818771123886
+    },
+    {
+      "feature": "away_fifa_ranking",
+      "importance": 0.04554617032408714
+    },
+    {
+      "feature": "home_fifa_ranking",
+      "importance": 0.0443430170416832
+    },
+    {
+      "feature": "h2h_home_wins",
+      "importance": 0.0410897396504879
+    },
+    {
+      "feature": "home_form5_conceded",
+      "importance": 0.03989317640662193
+    },
+    {
+      "feature": "away_form10_scored",
+      "importance": 0.03970600292086601
+    },
+    {
+      "feature": "competition_weight",
+      "importance": 0.03964082524180412
+    },
+    {
+      "feature": "away_form10_pts",
+      "importance": 0.03827608749270439
+    },
+    {
+      "feature": "home_form10_conceded",
+      "importance": 0.03810722753405571
+    },
+    {
+      "feature": "home_form10_scored",
+      "importance": 0.03793630003929138
+    },
+    {
+      "feature": "home_form10_pts",
+      "importance": 0.037918489426374435
+    },
+    {
+      "feature": "home_form5_scored",
+      "importance": 0.03785085305571556
+    },
+    {
+      "feature": "away_form5_scored",
+      "importance": 0.03741913661360741
+    },
+    {
+      "feature": "away_form5_pts",
+      "importance": 0.03735718876123428
+    },
+    {
+      "feature": "away_form5_conceded",
+      "importance": 0.037275731563568115
+    },
+    {
+      "feature": "away_form10_conceded",
+      "importance": 0.03674454241991043
+    },
+    {
+      "feature": "home_form5_pts",
+      "importance": 0.0365799255669117
+    },
+    {
+      "feature": "is_knockout",
+      "importance": 0.0348321795463562
+    },
+    {
+      "feature": "h2h_draws",
+      "importance": 0.034633148461580276
+    },
+    {
+      "feature": "h2h_away_goals_avg",
+      "importance": 0.03392947092652321
+    },
+    {
+      "feature": "neutral_venue",
+      "importance": 0.032799459993839264
+    },
+    {
+      "feature": "h2h_home_goals_avg",
+      "importance": 0.03217509388923645
+    },
+    {
+      "feature": "h2h_matches",
+      "importance": 0.029974205419421196
+    }
+  ],
+  "calibration_split": "2025-10-10"
+}

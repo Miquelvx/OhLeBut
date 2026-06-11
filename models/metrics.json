@@ -1,0 +1,10 @@
+{
+  "accuracy": 0.5925,
+  "log_loss": 0.9289,
+  "baseline_accuracy": 0.4627,
+  "baseline_log_loss": 1.0594,
+  "mae_home": 1.0689,
+  "mae_away": 0.9007,
+  "n_splits": 6,
+  "total_test_matches": 2103
+}
