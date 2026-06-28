@@ -120,7 +120,7 @@ async function loadData() {
     const data    = await predRes.json();
     const matches = await matchesRes.json();
 
-    renderTracker(data.progress, matches.matches || []);
+    renderTracker(data.tournament, matches.matches || []);
     renderAccuracy(data.model.accuracy);
     renderTrainCount(data.model.nb_train_matches);
     renderGroups(data.teams);
