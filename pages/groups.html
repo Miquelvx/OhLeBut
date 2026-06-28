@@ -33,6 +33,10 @@
   <button class="filter-btn all-btn active" data-grp="ALL">Tous</button>
   <!-- Les boutons par groupe sont générés par JS -->
   <span id="groupFilterBtns"></span>
+  <div class="mode-toggle" id="modeToggle">
+    <button class="mode-btn active" id="btnPred" onclick="setMode('pred')">🔮 Prédictions</button>
+    <button class="mode-btn" id="btnReal" onclick="setMode('real')">📊 Réel</button>
+  </div>
 </div>
 
 <main class="main" id="mainContent">
@@ -41,7 +45,17 @@
 
 <script src="assets.js"></script>
 <script>
-// FLAGS, flag() → shared.js
+let _mode = 'pred';  // 'pred' | 'real'
+let _data = null;
+
+function setMode(mode) {
+  _mode = mode;
+  document.getElementById('btnPred').classList.toggle('active', mode === 'pred');
+  document.getElementById('btnReal').classList.toggle('active', mode === 'real');
+  if (_data) renderAll(_data);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
 
 function qualClass(qual, pos) {
   if (qual === '1ST')      return 'qual-1ST';
@@ -49,67 +63,103 @@ function qualClass(qual, pos) {
   if (qual === '3RD_BEST' || pos === 3) return 'qual-3RD';
   return 'qual-OUT';
 }
-function qualLabel(qual,pos) {
+function qualLabel(qual, pos) {
   if (qual === '1ST')      return '1er';
   if (qual === '2ND')      return '2e';
-  if (qual === '3RD_BEST' || pos === 3) return '3e*';
+  if (qual === '3RD_BEST') return '3e*';
+  if (pos === 3)           return '3e';
   return 'Éliminé';
 }
-
 function probColor(p) {
   if (p >= .7) return '#16A34A';
   if (p >= .4) return '#F97316';
   return '#EF4444';
 }
-
 function fmtDate(str) {
   if (!str) return '';
   const d = new Date(str);
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
 }
 
+// ── renderStandings ───────────────────────────────────────────────────────
+
 function renderStandings(teams) {
-  const cols = ['J','V','N','D','BP','BC','Diff','Pts'];
-  const colKeys = ['played','w','d','l','gf','ga','gd','pts'];
+  const isReal = _mode === 'real';
+
+  // En mode réel, trier par classement réel si disponible
+  const sorted = isReal && teams[0]?.real
+    ? [...teams].sort((a, b) => (a.real.pos || 99) - (b.real.pos || 99))
+    : teams;
+
   return `
   <div class="standings-card">
     <table class="standings-table">
       <thead>
         <tr>
           <th style="width:38%">Équipe</th>
-          ${cols.map(c=>`<th>${c}</th>`).join('')}
-          <th>Qual.</th>
-          <th style="min-width:100px">Prob. Qual.</th>
+          <th>J</th><th>V</th><th>N</th><th>D</th>
+          <th>BP</th><th>BC</th><th>Diff</th><th>Pts</th>
+          <th>Statut</th>
+          ${isReal ? '' : '<th style="min-width:100px">Prob. Qual.</th>'}
         </tr>
       </thead>
       <tbody>
-        ${teams.map((t,i)=>{
-          const qc = qualClass(t.qual, t.pos);
-          const pctQual = Math.round(t.pq * 100);
-          const gd = t.gd >= 0 ? '+'+t.gd : t.gd;
+        ${sorted.map(t => {
+          const r     = isReal && t.real ? t.real : null;
+          const pts   = r ? r.pts   : t.pts;
+          const played= r ? r.played: t.played;
+          const w     = r ? r.w     : t.w;
+          const d     = r ? r.d     : t.d;
+          const l     = r ? r.l     : t.l;
+          const gf    = r ? r.gf    : t.gf;
+          const ga    = r ? r.ga    : t.ga;
+          const gd    = r ? r.gd    : t.gd;
+          const qual  = r ? r.qual  : t.qual;
+          const pos   = r ? r.pos   : t.pos;
+          const gdStr = gd >= 0 ? '+' + gd : String(gd);
+
+          // Badge prédit vs réel
+          let predBadge = '';
+          if (isReal && t.real) {
+            const predPos = t.pos;
+            const realPos = t.real.pos;
+            if (predPos === realPos) {
+              predBadge = `<span class="pred-badge correct">✓ Prédit ${predPos}e</span>`;
+            } else {
+              predBadge = `<span class="pred-badge wrong">✗ Prédit ${predPos}e</span>`;
+            }
+          }
+
+          const pctQual = Math.round((t.pq || 0) * 100);
+          const qc = qualClass(qual, pos);
+
           return `<tr>
             <td>
               <div class="team-cell">
-                <span class="pos-num">${t.pos}</span>
+                <span class="pos-num">${pos}</span>
                 ${flag(t.name, 22, 15, 'team-flag-img')}
                 <span class="team-cell-name">${t.name}</span>
+                ${predBadge}
               </div>
             </td>
-            <td>${t.played}</td>
-            <td>${t.w}</td>
-            <td>${t.d}</td>
-            <td>${t.l}</td>
-            <td>${t.gf}</td>
-            <td>${t.ga}</td>
-            <td style="font-weight:600;color:${t.gd>=0?'var(--grass)':'#EF4444'}">${gd}</td>
-            <td class="pts-cell">${t.pts}</td>
-            <td><span class="qual-badge ${qc}">${qualLabel(t.qual, t.pos)}</span></td>
+            <td>${played}</td>
+            <td>${w}</td>
+            <td>${d}</td>
+            <td>${l}</td>
+            <td>${gf}</td>
+            <td>${ga}</td>
+            <td style="font-weight:600;color:${gd>=0?'var(--grass)':'#EF4444'}">${gdStr}</td>
+            <td class="pts-cell">${pts}</td>
+            <td><span class="qual-badge ${qc}">${qualLabel(qual, pos)}</span></td>
+            ${isReal ? '' : `
             <td>
               <div class="prob-bar-wrap">
-                <div class="prob-bar"><div class="prob-bar-fill" style="width:${pctQual}%;background:${probColor(t.pq)}"></div></div>
+                <div class="prob-bar">
+                  <div class="prob-bar-fill" style="width:${pctQual}%;background:${probColor(t.pq)}"></div>
+                </div>
                 <span class="prob-val">${pctQual}%</span>
               </div>
-            </td>
+            </td>`}
           </tr>`;
         }).join('')}
       </tbody>
@@ -117,25 +167,40 @@ function renderStandings(teams) {
   </div>`;
 }
 
+// ── renderMatches ─────────────────────────────────────────────────────────
+// Inchangé — act_h/act_a/act_res déjà gérés dans les deux modes
+
 function renderMatches(matches) {
+  const isReal = _mode === 'real';
   return `
   <div class="matches-card">
     <div class="matches-card-header">
       <span>Matchs</span>
-      <small>Prédit · Score · Probas</small>
+      <small>${isReal ? 'Score réel · Prédit · Probas' : 'Prédictions · Probas'}</small>
     </div>
     ${matches.map(m => {
       const hasResult = m.act_h !== null && m.act_a !== null;
-      const correct = hasResult && m.act_res === m.pred_res;
+      const correct   = hasResult && m.act_res === m.pred_res;
       const phPct = Math.round(m.ph * 100);
       const pdPct = Math.round(m.pd * 100);
       const paPct = Math.round(m.pa * 100);
-      const scoreMain = hasResult
-        ? `<div class="score-actual">${m.act_h} – ${m.act_a}</div>`
-        : `<div class="score-actual" style="color:#A8A29E">${m.pred_h} – ${m.pred_a}</div>`;
-      const scoreLabel = hasResult
-        ? `<div class="score-pred ${correct?'correct':''}">Prédit: ${m.pred_h}–${m.pred_a} ${correct?'✓':''}</div>`
-        : `<div class="score-pred">Prédit</div>`;
+
+      let scoreMain, scoreLabel;
+
+      if (!isReal) {
+        // Mode prédiction : score prédit uniquement
+        scoreMain  = `<div class="score-actual" style="color:#A8A29E">${m.pred_h} – ${m.pred_a}</div>`;
+        scoreLabel = `<div class="score-pred">Prédit</div>`;
+      } else if (hasResult) {
+        // Mode réel : vrai score + comparaison prédit
+        scoreMain  = `<div class="score-actual">${m.act_h} – ${m.act_a}</div>`;
+        scoreLabel = `<div class="score-pred ${correct ? 'correct' : ''}">Prédit: ${m.pred_h}–${m.pred_a} ${correct ? '✓' : '✗'}</div>`;
+      } else {
+        // Mode réel mais pas encore joué
+        scoreMain  = `<div class="score-actual" style="color:#A8A29E">${m.pred_h} – ${m.pred_a}</div>`;
+        scoreLabel = `<div class="score-pred">Prédit</div>`;
+      }
+
       return `
       <div class="match-row">
         <div class="match-date-col">${fmtDate(m.date)}</div>
@@ -159,6 +224,88 @@ function renderMatches(matches) {
   </div>`;
 }
 
+// ── renderBestThirds ──────────────────────────────────────────────────────
+
+function renderBestThirds(best3Pred, best3Real) {
+  const isReal  = _mode === 'real';
+  const useReal = isReal && best3Real && best3Real.length > 0;
+  const list    = useReal ? best3Real : best3Pred;
+  const subtitle = useReal
+    ? '12 équipes · Classement réel final'
+    : '12 équipes · Les 8 premières sont qualifiées pour le tableau final';
+
+  return `
+  <div class="best3-section fade-in" id="best3-section">
+    <div class="section-title-row">
+      <div class="section-title">Classement des 3es</div>
+      <div class="section-sub">${subtitle}</div>
+    </div>
+    <div class="best3-table-wrap">
+      <table class="best3-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Groupe</th>
+            <th style="text-align:left">Équipe</th>
+            <th>Pts</th><th>Diff</th><th>BP</th><th>FIFA</th>
+            ${useReal ? '<th>Statut</th>' : '<th>Prob. qual.</th><th>Statut</th>'}
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map((t, i) => {
+            const qualified = useReal ? t.qualified : i < 8;
+            const gd = (t.gd >= 0 ? '+' : '') + t.gd;
+            const cutoff = !useReal && i === 8
+              ? '<tr class="cutoff-row"><td colspan="9"><span>── Éliminés ──</span></td></tr>'
+              : '';
+
+            // Badge comparaison prédit vs réel
+            let cmpBadge = '';
+            if (useReal) {
+              const predEntry = best3Pred.find(p => p.id === t.id);
+              if (predEntry) {
+                const predQual = predEntry.rank <= 8;
+                cmpBadge = qualified === predQual
+                  ? '<span class="pred-badge correct">✓ Prédit</span>'
+                  : '<span class="pred-badge wrong">✗ Prédit</span>';
+              }
+            }
+
+            const qualBadge = useReal
+              ? `<td><span class="qual-badge ${qualified ? 'qual-3RD' : 'qual-OUT'}">${qualified ? '3e ✓' : 'Élim.'}</span> ${cmpBadge}</td>`
+              : `<td>
+                  <div class="prob-bar-wrap">
+                    <div class="prob-bar">
+                      <div class="prob-bar-fill" style="width:${Math.round((t.prob||0)*100)}%;background:${qualified?'var(--grass)':'#E7E5E4'}"></div>
+                    </div>
+                    <span class="prob-val">${Math.round((t.prob||0)*100)}%</span>
+                  </div>
+                </td>
+                <td><span class="qual-badge ${qualified ? 'qual-3RD' : 'qual-OUT'}">${qualified ? '3e* ✓' : 'Élim.'}</span></td>`;
+
+            return cutoff + `<tr class="${qualified ? 'row-qualified' : 'row-out'}">
+              <td class="b3-rank">${t.rank || i+1}</td>
+              <td class="b3-group">Grp. ${t.group || t.group_name}</td>
+              <td class="b3-name-cell">${flag(t.name, 22, 15, 'team-flag-img')}<span>${t.name}</span></td>
+              <td class="b3-num">${t.pts}</td>
+              <td class="b3-num" style="color:${t.gd>=0?'var(--grass)':'#EF4444'}">${gd}</td>
+              <td class="b3-num">${t.gf}</td>
+              <td class="b3-num" style="color:#A8A29E">#${t.fifa_rank || t.fifa_ranking}</td>
+              ${qualBadge}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${!useReal ? `<p style="font-size:.75rem;color:#A8A29E;margin-top:.75rem;padding-left:.25rem">
+      * Classement déterminé par pts → diff. de buts → buts marqués → classement FIFA.
+      Probabilités issues des simulations Monte Carlo.
+    </p>` : ''}
+  </div>`;
+}
+
+// ── renderGroup & renderAll ───────────────────────────────────────────────
+
 function renderGroup(grpKey, grp) {
   return `
   <div class="group-block fade-in" data-group="${grpKey}" id="grp-${grpKey}">
@@ -171,109 +318,30 @@ function renderGroup(grpKey, grp) {
   </div>`;
 }
 
-function renderBestThirds(best3) {
-  // On construit les 12 troisièmes depuis les groupes (déjà triés par le modèle)
-  // best3 peut contenir 8 ou 12 équipes selon le JSON ; on affiche tout, ligne de coupure après le 8e
-  return `
-  <div class="best3-section fade-in" id="best3-section">
-    <div class="section-title-row">
-      <div class="section-title">Classement des 3es</div>
-      <div class="section-sub">12 équipes · Les 8 premières sont qualifiées pour le tableau final</div>
-    </div>
-    <div class="best3-table-wrap">
-      <table class="best3-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Groupe</th>
-            <th style="text-align:left">Équipe</th>
-            <th>Pts</th>
-            <th>Diff</th>
-            <th>BP</th>
-            <th>FIFA</th>
-            <th>Prob. qual.</th>
-            <th>Statut</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${best3.map((t, i) => {
-            const qualified = i < 8;
-            const pct = Math.round((t.prob || 0) * 100);
-            const gd = (t.gd >= 0 ? '+' : '') + t.gd;
-            const cutoff = i === 8 ? '<tr class="cutoff-row"><td colspan="9"><span>── Éliminés ──</span></td></tr>' : '';
-            return cutoff + `<tr class="${qualified ? 'row-qualified' : 'row-out'}">
-              <td class="b3-rank">${t.rank || i+1}</td>
-              <td class="b3-group">Grp. ${t.group}</td>
-              <td class="b3-name-cell">${flag(t.name, 22, 15, 'team-flag-img')}<span>${t.name}</span></td>
-              <td class="b3-num">${t.pts}</td>
-              <td class="b3-num" style="color:${t.gd>=0?'var(--grass)':'#EF4444'}">${gd}</td>
-              <td class="b3-num">${t.gf}</td>
-              <td class="b3-num" style="color:#A8A29E">#${t.fifa_rank}</td>
-              <td class="b3-prob">
-                <div class="prob-bar-wrap">
-                  <div class="prob-bar"><div class="prob-bar-fill" style="width:${pct}%;background:${qualified?'var(--grass)':'#E7E5E4'}"></div></div>
-                  <span class="prob-val">${pct}%</span>
-                </div>
-              </td>
-              <td><span class="qual-badge ${qualified ? 'qual-3RD' : 'qual-OUT'}">${qualified ? '3e* ✓' : 'Élim.'}</span></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-    <p style="font-size:.75rem;color:#A8A29E;margin-top:.75rem;padding-left:.25rem">
-      * Le classement des 3ème est déterminé par pts → diff. de buts → buts marqués → classement FIFA.
-      Les probabilités sont issues des simulations Monte Carlo.
-    </p>
-  </div>`;
-}
+function renderAll(data) {
+  const main    = document.getElementById('mainContent');
+  const groups  = data.groups;
+  const grpKeys = Object.keys(groups).sort();
+  const best3Pred = data.best_thirds || [];
+  const best3Real = data.best_thirds_real || [];
 
-
-async function init() {
-  const main = document.getElementById('mainContent');
-  let data;
-  try {
-    const res = await fetch('../data/groups.json');
-    if (!res.ok) throw new Error(res.status);
-    data = await res.json();
-  } catch(e) {
-    main.innerHTML = `<div class="loading" style="padding:3rem;text-align:center">
-      <p style="font-size:1.1rem;margin-bottom:.75rem">❌ Les données ne sont pas disponibles.</p>
-      <p style="color:#78716C;font-size:.88rem">Veuillez réessayer plus tard.</p>
-    </div>`;
-    return;
+  // En mode réel sans données réelles → message
+  if (_mode === 'real' && best3Real.length === 0) {
+    const hasAnyReal = Object.values(groups).some(g =>
+      g.teams.some(t => t.real !== null && t.real !== undefined)
+    );
+    if (!hasAnyReal) {
+      main.innerHTML = `<div class="loading" style="padding:3rem;text-align:center">
+        <p style="font-size:1.1rem;margin-bottom:.75rem">⏳ Les résultats réels ne sont pas encore disponibles.</p>
+        <p style="color:#78716C;font-size:.88rem">Repassez après la fin de la phase de groupes.</p>
+      </div>`;
+      return;
+    }
   }
 
-  const groups = data.groups;
-  // Construire les 12 troisièmes depuis tous les groupes, triés règles FIFA
-  const allThirds = Object.entries(groups).map(([grpKey, grp]) => {
-    const t = grp.teams.find(t => t.pos === 3);
-    if (!t) return null;
-    return { ...t, group: grpKey };
-  }).filter(Boolean).sort((a, b) => {
-    if (b.pts !== a.pts)    return b.pts - a.pts;
-    if (b.gd !== a.gd)     return b.gd - a.gd;
-    if (b.gf !== a.gf)     return b.gf - a.gf;
-    return (a.rank || 999) - (b.rank || 999);
-  }).map((t, i) => ({ ...t, rank: i + 1, prob: t.pq || 0, fifa_rank: t.rank }));
-  const best3 = allThirds;
-  const grpKeys = Object.keys(groups).sort();
-
-  // Boutons filtre
-  const btnContainer = document.getElementById('groupFilterBtns');
-  grpKeys.forEach(k => {
-    const btn = document.createElement('button');
-    btn.className = 'filter-btn';
-    btn.textContent = k;
-    btn.dataset.grp = k;
-    btn.addEventListener('click', () => filterGroup(k));
-    btnContainer.appendChild(btn);
-  });
-
-  // Render
   let html = '';
   grpKeys.forEach(k => { html += renderGroup(k, groups[k]); });
-  if (best3.length) html += renderBestThirds(best3);
+  html += renderBestThirds(best3Pred, best3Real);
   main.innerHTML = html;
 
   // Scroll animations
@@ -283,8 +351,9 @@ async function init() {
   document.querySelectorAll('.fade-in').forEach(el => obs.observe(el));
 }
 
+// ── Filtres de groupe ─────────────────────────────────────────────────────
+
 function filterGroup(grp) {
-  // Toggle "ALL"
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   if (grp === 'ALL') {
     document.querySelector('.all-btn').classList.add('active');
@@ -298,13 +367,41 @@ function filterGroup(grp) {
     });
     const s3 = document.getElementById('best3-section');
     if (s3) s3.style.display = 'none';
-    // Scroll vers le groupe
     const target = document.getElementById('grp-' + grp);
     if (target) setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   }
 }
 
-// Bind "Tous"
+// ── Init ──────────────────────────────────────────────────────────────────
+
+async function init() {
+  const main = document.getElementById('mainContent');
+  try {
+    const res = await fetch('../data/groups.json');
+    if (!res.ok) throw new Error(res.status);
+    _data = await res.json();
+  } catch(e) {
+    main.innerHTML = `<div class="loading" style="padding:3rem;text-align:center">
+      <p style="font-size:1.1rem;margin-bottom:.75rem">❌ Les données ne sont pas disponibles.</p>
+      <p style="color:#78716C;font-size:.88rem">Veuillez réessayer plus tard.</p>
+    </div>`;
+    return;
+  }
+
+  // Boutons filtre de groupe
+  const btnContainer = document.getElementById('groupFilterBtns');
+  Object.keys(_data.groups).sort().forEach(k => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.textContent = k;
+    btn.dataset.grp = k;
+    btn.addEventListener('click', () => filterGroup(k));
+    btnContainer.appendChild(btn);
+  });
+
+  renderAll(_data);
+}
+
 document.querySelector('.all-btn').addEventListener('click', () => filterGroup('ALL'));
 
 init();

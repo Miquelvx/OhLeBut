@@ -733,3 +733,40 @@ nav {
         font-size: .75rem; 
     }
 }
+
+/* ── TOGGLE REAL RESULT ── */
+.mode-toggle {
+  display: flex;
+  gap: .25rem;
+  margin-left: auto;
+  background: #F5F3EE;
+  border-radius: 99px;
+  padding: .2rem;
+}
+.mode-btn {
+  font-size: .78rem;
+  font-weight: 600;
+  padding: .3rem .9rem;
+  border-radius: 99px;
+  border: none;
+  background: transparent;
+  color: #78716C;
+  cursor: pointer;
+  transition: all .2s;
+  font-family: 'DM Sans', sans-serif;
+}
+.mode-btn.active {
+  background: var(--dark);
+  color: white;
+}
+.pred-badge {
+  display: inline-block;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .1rem .35rem;
+  border-radius: 4px;
+  margin-left: .3rem;
+  vertical-align: middle;
+}
+.pred-badge.correct  { background: #DCFCE7; color: #15803D; }
+.pred-badge.wrong    { background: #FEE2E2; color: #B91C1C; }
