@@ -363,9 +363,84 @@ def export_groups(conn):
 # ══════════════════════════════════════════════════════════════════
 
 def export_bracket(conn):
-    # Vérifier quelles colonnes actual_* existent dans knockout_fixtures
-    import sqlite3
+    fixtures = pd.read_sql_query("""
+        SELECT match_id, round,
+               team_a_id, team_a_name, team_b_id, team_b_name,
+               pred_score_a, pred_score_b,
+               prob_a_wins, prob_b_wins, score_freq,
+               winner_id, winner_name
+        FROM knockout_fixtures ORDER BY match_id
+    """, conn)
+ 
+    try:
+        probs = pd.read_sql_query("""
+            SELECT kp.team_id, kp.team_name, kp.group_name, kp.fifa_ranking,
+                   kp.prob_r16, kp.prob_r8, kp.prob_qf, kp.prob_sf,
+                   kp.prob_final, kp.prob_champion,
+                   COALESCE(kp.prob_qualify, gs.prob_qualify) as prob_qualify
+            FROM knockout_probabilities kp
+            LEFT JOIN group_standings gs USING(team_id)
+            ORDER BY kp.prob_champion DESC
+        """, conn)
+    except Exception:
+        probs = pd.read_sql_query("""
+            SELECT kp.team_id, kp.team_name, kp.group_name, kp.fifa_ranking,
+                   kp.prob_r16, kp.prob_r8, kp.prob_qf, kp.prob_sf,
+                   kp.prob_final, kp.prob_champion,
+                   gs.prob_qualify
+            FROM knockout_probabilities kp
+            LEFT JOIN group_standings gs USING(team_id)
+            ORDER BY kp.prob_champion DESC
+        """, conn)
+ 
+    bracket = [
+        {"id":    m["match_id"],
+         "round": m["round"],
+         "team_a": {"id": safe_int(m["team_a_id"]), "name": m["team_a_name"],
+                    "score": safe_int(m["pred_score_a"])},
+         "team_b": {"id": safe_int(m["team_b_id"]), "name": m["team_b_name"],
+                    "score": safe_int(m["pred_score_b"])},
+         "prob_a":     safe_float(m["prob_a_wins"], 3),
+         "prob_b":     safe_float(m["prob_b_wins"], 3),
+         "score_freq": safe_float(m["score_freq"], 1),
+         "winner":     {"id": safe_int(m["winner_id"]), "name": m["winner_name"]}}
+        for _, m in fixtures.iterrows()
+    ]
+ 
+    probabilities = [
+        {"id":    safe_int(r["team_id"]),
+         "name":  r["team_name"],
+         "group": r["group_name"],
+         "rank":  safe_int(r["fifa_ranking"]),
+         "pq":    safe_float(r["prob_qualify"], 3),
+         "r16":   safe_float(r["prob_r16"], 3),
+         "r8":    safe_float(r["prob_r8"], 3),
+         "qf":    safe_float(r["prob_qf"], 3),
+         "sf":    safe_float(r["prob_sf"], 3),
+         "fin":   safe_float(r["prob_final"], 3),
+         "champ": safe_float(r["prob_champion"], 3)}
+        for _, r in probs.iterrows()
+    ]
+ 
+    return {"bracket": bracket, "probabilities": probabilities}
+
+# ══════════════════════════════════════════════════════════════════
+# real_bracket.json
+# ══════════════════════════════════════════════════════════════════
+
+def export_bracket_real(conn):
     c = conn.cursor()
+ 
+    # Vérifier que knockout_fixtures existe et a des données
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='knockout_fixtures'")
+    if not c.fetchone():
+        return None
+ 
+    c.execute("SELECT COUNT(*) FROM knockout_fixtures")
+    if c.fetchone()[0] == 0:
+        return None
+ 
+    # Vérifier colonnes actual_* dans knockout_fixtures
     c.execute("PRAGMA table_info(knockout_fixtures)")
     ko_cols = {r[1] for r in c.fetchall()}
     has_actual = "actual_score_a" in ko_cols
@@ -383,38 +458,36 @@ def export_bracket(conn):
             FROM knockout_fixtures ORDER BY match_id
         """, conn)
     else:
+        # Joindre wc2026_fixtures pour récupérer les vrais résultats
         fixtures = pd.read_sql_query("""
-            SELECT match_id, round,
-                   team_a_id, team_a_name, team_b_id, team_b_name,
-                   pred_score_a, pred_score_b,
-                   prob_a_wins, prob_b_wins, score_freq,
-                   winner_id, winner_name
-            FROM knockout_fixtures ORDER BY match_id
+            SELECT kf.match_id, kf.round,
+                   kf.team_a_id, kf.team_a_name, kf.team_b_id, kf.team_b_name,
+                   kf.pred_score_a, kf.pred_score_b,
+                   kf.prob_a_wins, kf.prob_b_wins, kf.score_freq,
+                   kf.winner_id, kf.winner_name,
+                   wf.actual_home_goals  AS actual_score_a,
+                   wf.actual_away_goals  AS actual_score_b,
+                   wf.actual_home_penalties AS actual_pen_a,
+                   wf.actual_away_penalties AS actual_pen_b,
+                   wf.actual_result
+            FROM knockout_fixtures kf
+            LEFT JOIN wc2026_fixtures wf ON wf.bracket_id = kf.match_id
+            ORDER BY kf.match_id
         """, conn)
  
-    # Probabilités de progression — fallback real_group_standings si group_standings absent
+    # Probabilités depuis knockout_probabilities
     try:
         probs = pd.read_sql_query("""
             SELECT kp.team_id, kp.team_name, kp.group_name, kp.fifa_ranking,
                    kp.prob_r16, kp.prob_r8, kp.prob_qf, kp.prob_sf,
                    kp.prob_final, kp.prob_champion,
-                   COALESCE(kp.prob_qualify, gs.prob_qualify) as prob_qualify
+                   COALESCE(rgs.prob_qualify, NULL) as prob_qualify
             FROM knockout_probabilities kp
-            LEFT JOIN group_standings gs USING(team_id)
+            LEFT JOIN real_group_standings rgs USING(team_id)
             ORDER BY kp.prob_champion DESC
         """, conn)
     except Exception:
         try:
-            probs = pd.read_sql_query("""
-                SELECT kp.team_id, kp.team_name, kp.group_name, kp.fifa_ranking,
-                       kp.prob_r16, kp.prob_r8, kp.prob_qf, kp.prob_sf,
-                       kp.prob_final, kp.prob_champion,
-                       rgs.prob_qualify
-                FROM knockout_probabilities kp
-                LEFT JOIN real_group_standings rgs USING(team_id)
-                ORDER BY kp.prob_champion DESC
-            """, conn)
-        except Exception:
             probs = pd.read_sql_query("""
                 SELECT team_id, team_name, group_name, fifa_ranking,
                        prob_r16, prob_r8, prob_qf, prob_sf,
@@ -422,58 +495,63 @@ def export_bracket(conn):
                 FROM knockout_probabilities
                 ORDER BY prob_champion DESC
             """, conn)
+        except Exception:
+            probs = pd.DataFrame()
  
     bracket = []
     for _, m in fixtures.iterrows():
+        # Vainqueur réel
+        actual_winner = None
+        if m.get("actual_result") == "H" and m["team_a_id"]:
+            actual_winner = {"id": safe_int(m["team_a_id"]), "name": m["team_a_name"]}
+        elif m.get("actual_result") == "A" and m["team_b_id"]:
+            actual_winner = {"id": safe_int(m["team_b_id"]), "name": m["team_b_name"]}
+ 
         entry = {
             "id":    m["match_id"],
             "round": m["round"],
             "team_a": {
-                "id":    safe_int(m["team_a_id"]),
-                "name":  m["team_a_name"],
-                "score": safe_int(m["pred_score_a"]),
+                "id":         safe_int(m["team_a_id"]),
+                "name":       m["team_a_name"],
+                "pred_score": safe_int(m["pred_score_a"]),
             },
             "team_b": {
-                "id":    safe_int(m["team_b_id"]),
-                "name":  m["team_b_name"],
-                "score": safe_int(m["pred_score_b"]),
+                "id":         safe_int(m["team_b_id"]),
+                "name":       m["team_b_name"],
+                "pred_score": safe_int(m["pred_score_b"]),
             },
-            "prob_a":     safe_float(m["prob_a_wins"], 3),
-            "prob_b":     safe_float(m["prob_b_wins"], 3),
-            "score_freq": safe_float(m["score_freq"], 1),
-            "winner": {
-                "id":   safe_int(m["winner_id"]),
-                "name": m["winner_name"],
-            },
-            # Résultats réels
+            "prob_a":      safe_float(m["prob_a_wins"], 3),
+            "prob_b":      safe_float(m["prob_b_wins"], 3),
+            "score_freq":  safe_float(m["score_freq"], 1),
+            "pred_winner": {"id": safe_int(m["winner_id"]), "name": m["winner_name"]},
             "actual": {
-                "score_a": safe_int(m["actual_score_a"]) if has_actual else None,
-                "score_b": safe_int(m["actual_score_b"]) if has_actual else None,
-                "pen_a":   safe_int(m["actual_pen_a"])   if has_actual else None,
-                "pen_b":   safe_int(m["actual_pen_b"])   if has_actual else None,
-                "result":  m["actual_result"]             if has_actual else None,
+                "score_a": safe_int(m.get("actual_score_a")),
+                "score_b": safe_int(m.get("actual_score_b")),
+                "pen_a":   safe_int(m.get("actual_pen_a")),
+                "pen_b":   safe_int(m.get("actual_pen_b")),
+                "result":  m.get("actual_result"),
+                "winner":  actual_winner,
             },
         }
         bracket.append(entry)
  
     probabilities = [
-        {
-            "id":    safe_int(r["team_id"]),
-            "name":  r["team_name"],
-            "group": r["group_name"],
-            "rank":  safe_int(r["fifa_ranking"]),
-            "pq":    safe_float(r["prob_qualify"], 3),
-            "r16":   safe_float(r["prob_r16"], 3),
-            "r8":    safe_float(r["prob_r8"], 3),
-            "qf":    safe_float(r["prob_qf"], 3),
-            "sf":    safe_float(r["prob_sf"], 3),
-            "fin":   safe_float(r["prob_final"], 3),
-            "champ": safe_float(r["prob_champion"], 3),
-        }
+        {"id":    safe_int(r["team_id"]),
+         "name":  r["team_name"],
+         "group": r["group_name"],
+         "rank":  safe_int(r["fifa_ranking"]),
+         "pq":    safe_float(r.get("prob_qualify"), 3),
+         "r16":   safe_float(r["prob_r16"], 3),
+         "r8":    safe_float(r["prob_r8"], 3),
+         "qf":    safe_float(r["prob_qf"], 3),
+         "sf":    safe_float(r["prob_sf"], 3),
+         "fin":   safe_float(r["prob_final"], 3),
+         "champ": safe_float(r["prob_champion"], 3)}
         for _, r in probs.iterrows()
-    ]
+    ] if len(probs) > 0 else []
  
     return {"bracket": bracket, "probabilities": probabilities}
+
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -694,6 +772,7 @@ if __name__ == "__main__":
     write_json("predictions.json",   export_predictions(conn, metrics))
     write_json("groups.json",        export_groups(conn))
     write_json("bracket.json",       export_bracket(conn))
+    write_json("real_bracket.json",  export_bracket_real(conn) or {})
     write_json("training.json",      export_training(conn))
     write_json("model.json",         export_model(conn, metrics, features_meta))
     write_json("wc2026_matches.json", export_fixtures(conn))
